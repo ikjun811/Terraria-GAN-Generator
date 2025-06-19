@@ -10,25 +10,48 @@ import os
 from PIL import Image
 import io
 import torchvision.transforms as transforms
+import base64
 
 # ===============================================================
-# 0. 페이지 기본 설정 및 모델 정의
+# 0. 페이지 기본 설정 및 스타일 적용
 # ===============================================================
 
 st.set_page_config(
     page_title="Terraria Map Generator",
-    page_icon="🗺️",
+    page_icon="assets/logo.png",
     layout="wide"
 )
 
+# --- CSS 및 배경 적용 함수 ---
+@st.cache_data
+def get_base64_of_bin_file(bin_file):
+    with open(bin_file, 'rb') as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
+
+def set_background(png_file):
+    try:
+        bin_str = get_base64_of_bin_file(png_file)
+        with open("style.css", "r", encoding="utf-8") as f:
+            css_code = f.read().replace("{img_base64}", bin_str)
+            st.markdown(f"<style>{css_code}</style>", unsafe_allow_html=True)
+    except FileNotFoundError:
+        st.warning("스타일시트 파일(style.css) 또는 배경 이미지(assets/background.png)를 찾을 수 없습니다.")
+
+set_background('assets/background.png')
+
+# ===============================================================
+# 1. 모델 아키텍처 및 함수 정의 (가장 먼저 선언)
+# ===============================================================
+
 # --- 고정된 하이퍼파라미터 ---
-# 이 모델은 ngf=96으로 학습되었으므로, 이 값을 고정합니다.
 NGF_VALUE = 96
 NZ_VALUE = 100
 NC_VALUE = 3
 NGPU_VALUE = 1
+PIXELATION_SCALE_FACTOR = 2
 
-# Generator 클래스 정의
+# --- 생성자 모델 정의 ---
 class Generator(nn.Module):
     def __init__(self, ngpu, nz, ngf, nc):
         super(Generator, self).__init__()
@@ -55,12 +78,38 @@ class Generator(nn.Module):
     def forward(self, input):
         return self.main(input)
 
-# ===============================================================
-# 1. 사이드바 UI 구성 (단순화)
-# ===============================================================
+# --- 이미지 생성 함수 ---
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+@st.cache_data
+def generate_image(model_path, num_images):
+    model = Generator(ngpu=NGPU_VALUE, nz=NZ_VALUE, ngf=NGF_VALUE, nc=NC_VALUE)
+    model.load_state_dict(torch.load(model_path, map_location=device))
+    model.to(device)
+    model.eval()
+    with torch.no_grad():
+        noise = torch.randn(num_images, NZ_VALUE, 1, 1, device=device)
+        fake_images_tensor = model(noise).detach().cpu()
+    return fake_images_tensor
+
+# --- 픽셀화 함수 ---
+def pixelate_image(image_tensor):
+    grid = vutils.make_grid(image_tensor, padding=0, normalize=True)
+    pil_img = transforms.ToPILImage()(grid)
+    original_width, original_height = pil_img.size
+    small_image = pil_img.resize((original_width // PIXELATION_SCALE_FACTOR, original_height // PIXELATION_SCALE_FACTOR), Image.Resampling.NEAREST)
+    pixelated_image = small_image.resize((original_width, original_height), Image.Resampling.NEAREST)
+    return pixelated_image
+
+# ===============================================================
+# 2. 사이드바 UI 구성
+# ===============================================================
 with st.sidebar:
-    st.title("🗺️ Terraria Map Generator")
+    try:
+        st.image("assets/logo.png")
+    except FileNotFoundError:
+        st.title("🗺️ Terraria Map Generator")
+    
     st.markdown("---")
     st.header("1. 모델 선택")
 
@@ -69,8 +118,7 @@ with st.sidebar:
         model_files = [f for f in os.listdir(model_dir) if f.startswith("netG_") and f.endswith(".pth")]
         model_files.sort(key=lambda x: int(x.split('_')[-1].split('.')[0]), reverse=True)
         selected_model_file = st.selectbox(
-            "학습된 모델(에폭)을 선택하세요:",
-            model_files,
+            "학습된 모델(에폭) 선택:", model_files,
             help="에폭이 높을수록 더 오래 학습되었지만, 과적합될 수 있습니다. 200~300 에폭을 추천합니다."
         )
         model_path = os.path.join(model_dir, selected_model_file)
@@ -84,62 +132,33 @@ with st.sidebar:
     
     st.markdown("---")
     st.header("3. 후처리 옵션")
-    apply_pixelation = st.checkbox("픽셀화 효과 적용 (권장)", value=True) # 기본으로 체크되도록 설정
-
-# ===============================================================
-# 2. 이미지 생성 및 후처리 함수 정의
-# ===============================================================
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-@st.cache_data
-def generate_image(model_path, num_images):
-    # 모델 구조를 고정된 ngf 값으로 생성
-    model = Generator(ngpu=NGPU_VALUE, nz=NZ_VALUE, ngf=NGF_VALUE, nc=NC_VALUE)
-    # 학습된 가중치 불러오기
-    model.load_state_dict(torch.load(model_path, map_location=device))
-    model.to(device)
-    model.eval()
-    
-    with torch.no_grad():
-        noise = torch.randn(num_images, NZ_VALUE, 1, 1, device=device)
-        fake_images_tensor = model(noise).detach().cpu()
-    return fake_images_tensor
-
-def pixelate_image(image_tensor, scale_factor=2): # scale_factor를 2로 고정
-    grid = vutils.make_grid(image_tensor, padding=0, normalize=True)
-    pil_img = transforms.ToPILImage()(grid)
-    original_width, original_height = pil_img.size
-    small_image = pil_img.resize((original_width // scale_factor, original_height // scale_factor), Image.Resampling.NEAREST)
-    pixelated_image = small_image.resize((original_width, original_height), Image.Resampling.NEAREST)
-    return pixelated_image
+    apply_pixelation = st.checkbox("픽셀화 효과 (권장)", value=True)
 
 # ===============================================================
 # 3. 메인 화면 UI 및 로직 실행
 # ===============================================================
-st.title("딥러닝으로 생성하는 테라리아 맵")
-st.write("좌측 사이드바에서 옵션을 선택하고 '새로운 맵 생성' 버튼을 클릭하세요.")
+st.title("Terraria Map Generator")
+st.write("좌측 사이드바에서 옵션을 선택하고 아래 버튼을 클릭하여 새로운 맵을 생성합니다.")
 
-if st.sidebar.button("✨ 새로운 맵 생성", type="primary"):
+if st.sidebar.button("💎 새로운 맵 생성", type="primary"):
     if model_path:
-        with st.spinner(f"{num_images}개의 새로운 맵 조각을 생성하는 중..."):
-            # 이미지 생성
+        with st.spinner("월드 생성 중... ⛏️"):
             generated_tensor = generate_image(model_path, num_images)
             
-            # 후처리 적용
             if apply_pixelation:
-                final_image = pixelate_image(generated_tensor) # 강도를 2로 고정했으므로 인자 전달 불필요
+                final_image = pixelate_image(generated_tensor)
             else:
                 grid = vutils.make_grid(generated_tensor, padding=2, normalize=True)
                 final_image = transforms.ToPILImage()(grid)
             
-        st.image(final_image, caption=f"생성된 맵 (모델: {selected_model_file})", use_container_width=True)
+        st.image(final_image, caption=f"생성된 지하 설원 (모델: {selected_model_file})", use_container_width=True)
         
         buf = io.BytesIO()
         final_image.save(buf, format="PNG")
         byte_im = buf.getvalue()
-        download_filename = f"generated_map_{selected_model_file.replace('.pth', '')}.png"
-        st.download_button("🖼️ 이미지 다운로드", byte_im, download_filename, "image/png")
+        download_filename = f"terraria_map_{selected_model_file.replace('.pth', '')}.png"
+        st.download_button("💾 이미지 저장", byte_im, download_filename, "image/png")
     else:
         st.warning("모델 파일을 찾을 수 없습니다.")
 else:
-    st.info("버튼을 클릭하여 맵 생성을 시작하세요.")
+    st.info("좌측의 '새로운 맵 생성' 버튼을 클릭하여 시작하세요.")

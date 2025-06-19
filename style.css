@@ -1,0 +1,64 @@
+/* Google Fonts에서 픽셀 폰트 불러오기 */
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+/* 전체 앱 배경 설정 */
+[data-testid="stAppViewContainer"] > .main {
+    background-image: url(data:image/png;base64,{img_base64});
+    background-size: 300px;
+    background-position: top left;
+    background-repeat: repeat;
+    background-attachment: local;
+}
+
+/* 메인 타이틀 폰트 및 스타일 (여기는 픽셀 폰트 유지) */
+h1 {
+    font-family: 'Press Start 2P', cursive;
+    color: #FFFFFF;
+    text-shadow: 3px 3px 0px #5E5E5E;
+}
+
+/* 사이드바 스타일 */
+[data-testid="stSidebar"] > div:first-child {
+    background-color: #4E342E;
+    border-right: 5px solid #3E2723;
+}
+
+/* 사이드바 내부 텍스트 색상 */
+[data-testid="stSidebar"] .st-emotion-cache-16txtl3 {
+    color: #D7CCC8;
+}
+
+/* --- 이 부분이 수정되었습니다 --- */
+/* 사이드바 헤더: 픽셀 폰트 지정을 제거하여 기본 폰트가 나오도록 함 */
+[data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {
+    color: #FFFFFF;
+    /* font-family: 'Press Start 2P', cursive;  <-- 이 줄을 삭제했습니다. */
+    text-shadow: 2px 2px 0px #212121;
+}
+
+/* 버튼 스타일 (나무 판자 느낌) */
+.stButton>button {
+    border: 3px solid #5D4037;
+    border-radius: 5px;
+    background-color: #8D6E63;
+    color: white;
+    font-family: 'Press Start 2P', cursive;
+    transition: all 0.2s;
+}
+.stButton>button:hover {
+    border-color: #A1887F;
+    background-color: #A1887F;
+    color: white;
+}
+.stButton>button:active {
+    background-color: #6D4C41 !important;
+    border-color: #4E342E !important;
+}
+
+/* 생성된 이미지 아래의 캡션 스타일 */
+.stImage figcaption {
+    font-family: 'Press Start 2P', cursive;
+    color: #FFFFFF;
+    text-shadow: 2px 2px 0px #3E2723;
+    text-align: center;
+}
