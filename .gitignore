@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+
+# Virtual Environment
+TerraPRJ/
+venv/
+
+# Large Data & Models
+data/
+output/
+generated_images/
+# models/  <-- 만약 .pth 파일 용량이 100MB를 넘는다면 주석을 해제하세요.
+
+# IDE / OS specific
+.vscode/
+.idea/
+.DS_Store
