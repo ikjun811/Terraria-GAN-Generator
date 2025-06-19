@@ -1,6 +1,6 @@
 # generate_images.py
 
-# python generate_images.py output/netG_epoch_299.pth --num_images 1
+# python src/generate_images.py output/netG_epoch_350.pth --num_images 1
 
 # generate_images.py
 import torch
@@ -13,14 +13,14 @@ import argparse
 # 1. 설정 (학습 스크립트의 모델 구조와 관련된 값과 일치해야 함)
 # ===============================================================
 nz = 100 # 잠재 공간 벡터 크기
-ngf = 96 # 생성자 특징 맵 크기 (train_gan.py와 동일)
+ngf = 96 # 생성자 특징 맵 크기 (terra_gan.py와 동일)
 nc = 3   # 이미지 채널 수
 ngpu = 1 # 사용할 GPU 개수
 
 # ===============================================================
-# 2. 생성자 모델 정의 (학습 스크립트에서 그대로 복사)
+# 2. 생성자 모델 정의
 # ===============================================================
-# 이 클래스의 구조는 모델을 저장했을 때의 구조와 100% 동일해야 합니다.
+# 모델을 저장했을 때의 구조와 동일
 class Generator(nn.Module):
     def __init__(self, ngpu):
         super(Generator, self).__init__()
@@ -62,30 +62,37 @@ def main():
     parser.add_argument("--output_dir", type=str, default="generated_images", help="Directory to save the generated images.")
     args = parser.parse_args()
 
-    os.makedirs(args.output_dir, exist_ok=True)
-    # 저장될 파일 이름을 모델 파일 이름 기반으로 자동 생성
-    output_filename = os.path.basename(args.model_path).replace('.pth', '.png')
+    # 스크립트 위치를 기준으로 상대 경로를 절대 경로로 변환
+    script_path = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_path)
+    
+    # 입력된 경로가 상대 경로일 경우, 프로젝트 루트를 기준으로 경로를 조합
+    model_path_abs = args.model_path if os.path.isabs(args.model_path) else os.path.join(project_root, args.model_path)
+    output_dir_abs = args.output_dir if os.path.isabs(args.output_dir) else os.path.join(project_root, args.output_dir)
+
+    os.makedirs(output_dir_abs, exist_ok=True)
+    output_filename = os.path.basename(model_path_abs).replace('.pth', '.png')
 
     device = torch.device("cuda:0" if (torch.cuda.is_available() and ngpu > 0) else "cpu")
     print(f"Using device: {device}")
 
-    # 1. 빈 생성자 모델 구조를 만듦
+    # 빈 생성자 모델 구조를 만듦
     netG = Generator(ngpu).to(device)
 
-    # 2. 학습된 가중치(.pth 파일)를 불러와 모델에 덮어씌움
-    print(f"Loading model from: {args.model_path}")
-    netG.load_state_dict(torch.load(args.model_path, map_location=device))
+    # 학습된 가중치(.pth 파일)를 불러와 모델에 덮어씌움
+    print(f"Loading model from: {model_path_abs}")
+    netG.load_state_dict(torch.load(model_path_abs, map_location=device))
 
-    # 3. 모델을 '평가 모드'로 전환 (Dropout, BatchNorm 등의 동작이 추론에 맞게 변경됨)
+    # 모델을 '평가 모드'로 전환
     netG.eval()
 
-    # 4. 실제 이미지 생성
-    with torch.no_grad(): # 불필요한 기울기 계산을 방지하여 속도 및 메모리 효율 향상
+    # 실제 이미지 생성
+    with torch.no_grad():
         noise = torch.randn(args.num_images, nz, 1, 1, device=device)
         fake_images = netG(noise).detach().cpu()
 
-    # 5. 생성된 이미지를 파일로 저장
-    save_path = os.path.join(args.output_dir, output_filename)
+    # 생성된 이미지를 파일로 저장
+    save_path = os.path.join(output_dir_abs, output_filename)
     vutils.save_image(fake_images, save_path, normalize=True, padding=2)
 
     print(f"Successfully generated {args.num_images} images and saved to: {save_path}")

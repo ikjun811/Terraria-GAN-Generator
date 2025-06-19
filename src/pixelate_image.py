@@ -1,3 +1,7 @@
+# python src/pixelate_image.py generated_images/netG_epoch_399.png
+# python src/pixelate_image.py generated_images/netG_epoch_350.png
+
+
 # pixelate_image.py
 
 import os
@@ -42,10 +46,19 @@ if __name__ == '__main__':
     
     args = parser.parse_args()
 
-    if args.output is None:
-        # 출력 파일 이름 자동 생성
-        path, filename = os.path.split(args.input_image)
-        name, ext = os.path.splitext(filename)
-        args.output = os.path.join(path, f"{name}_pixelated{ext}")
+    # 프로젝트 루트 폴더를 기준으로
+    script_path = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_path)
 
-    pixelate(args.input_image, args.output, args.scale)
+    # 입력 경로가 상대 경로이면, 프로젝트 루트를 기준으로 절대 경로
+    input_path_abs = args.input_image if os.path.isabs(args.input_image) else os.path.join(project_root, args.input_image)
+
+    # 출력 경로 처리
+    if args.output is None:
+        path, filename = os.path.split(input_path_abs)
+        name, ext = os.path.splitext(filename)
+        output_path_abs = os.path.join(path, f"{name}_pixelated{ext}")
+    else:
+        output_path_abs = args.output if os.path.isabs(args.output) else os.path.join(project_root, args.output)
+
+    pixelate(input_path_abs, output_path_abs, args.scale)

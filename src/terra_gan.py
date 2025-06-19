@@ -1,9 +1,13 @@
 # cd C:\Users\0320\Documents\GitHub\Terraria-GAN-Generator
 # .\venv\Scripts\Activate.ps1
 # Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
-# python terra_gan.py
+# python src/terra_gan.py
 
+# python src/generate_images.py models/snow_biome/netG_epoch_299.pth
+# python src/generate_images.py models/snow_biome/netG_epoch_299.pth --num_images 1
+# python src/generate_images.py models/snow_biome/netG_epoch_299.pth --num_images 16 --output_dir my_favorite_images
 
+# terra_gan.py
 # -*- coding: utf-8 -*-
 # 필요한 라이브러리들을 불러옵니다.
 import argparse
@@ -27,8 +31,15 @@ import matplotlib.animation as animation
 # ===============================================================
 
 # --- 경로 및 시드 설정 ---
-dataroot = "../data/terraria_patches"  # 학습할 이미지 데이터가 있는 루트 폴더
-output_dir = "../output"               # 학습 결과(이미지, 모델)를 저장할 폴더
+# 현재 스크립트 파일의 절대 경로를 가져옵니다.
+script_path = os.path.dirname(os.path.abspath(__file__))
+# 프로젝트 루트 폴더는 스크립트 위치의 한 단계 상위 폴더입니다.
+project_root = os.path.dirname(script_path)
+
+# 프로젝트 루트를 기준으로 상대 경로를 설정합니다.
+dataroot = os.path.join(project_root, "data", "terraria_patches")
+output_dir = os.path.join(project_root, "output")
+
 os.makedirs(output_dir, exist_ok=True) # 결과 폴더가 없으면 생성
 
 manualSeed = 999 # 재현성을 위한 무작위 시드 고정
@@ -36,25 +47,25 @@ print("Random Seed: ", manualSeed)
 random.seed(manualSeed)
 torch.manual_seed(manualSeed)
 
-# 재현성을 위해 cuDNN의 비결정적 알고리즘을 끕니다. (성능은 약간 저하될 수 있음)
+# 재현성을 위해 cuDNN의 비결정적 알고리즘을 끕니다.
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
 # --- 학습 하이퍼파라미터 ---
-workers = 0          # 데이터 로딩에 사용할 스레드 수 (Windows에서는 0이 안정적)
+workers = 0          # 데이터 로딩에 사용할 스레드 수 
 batch_size = 64      # 한 번에 학습할 이미지 수
 image_size = 128     # 모든 이미지의 크기를 128x128로 통일
 nc = 3               # 이미지의 컬러 채널 수 (RGB)
 nz = 100             # 생성자 입력으로 사용될 잠재 공간 벡터의 크기
-ngf = 128             # 생성자 내부의 특징 맵 크기를 조절 (모델의 표현력)
-ndf = 128             # Critic(판별자) 내부의 특징 맵 크기를 조절 (모델의 판별력)
+ngf = 96             # 생성자 내부의 특징 맵 크기를 조절 (모델의 표현력)
+ndf = 96             # Critic(판별자) 내부의 특징 맵 크기를 조절 (모델의 판별력)
 num_epochs = 400     # 전체 데이터셋을 몇 번 반복하여 학습할지 결정
-lr = 0.00008          # 학습률 (WGAN-GP는 낮은 값이 안정적)
+lr = 0.0001          # 학습률 (WGAN-GP는 낮은 값이 안정적)
 ngpu = 1             # 사용한 GPU 개수
 
 # --- WGAN-GP 전용 하이퍼파라미터 ---
 lambda_gp = 10  # Gradient Penalty의 가중치 (Critic의 안정성을 위해)
-n_critic = 5    # 생성자 1번 업데이트 당 Critic을 5번 업데이트하여 균형을 맞춤
+n_critic = 3    # 생성자 1번 업데이트 당 Critic 5번 업데이트 (학습 균형)
 beta1 = 0.5     # Adam 옵티마이저의 beta1 값
 beta2 = 0.9     # Adam 옵티마이저의 beta2 값
 
